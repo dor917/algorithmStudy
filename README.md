@@ -223,6 +223,183 @@ while (!stack.isEmpty()) {
 
 ---
 
+## 힙(Heap)
+
+### 푼 문제
+- ✅ Lv.2 - 더 맵게
+- ✅ Lv.3 - 디스크 컨트롤러
+
+### 핵심 개념
+
+**힙을 사용하는 이유**
+- **시간 복잡도**: 반복적인 최솟값/최댓값 찾기가 필요할 때
+  - 일반 배열 + 정렬: O(N² log N) ❌
+  - 힙 사용: O(N log N) ✅
+- **효율적인 우선순위 관리**: 삽입/삭제 후 자동으로 힙 구조 유지
+- **대표적 사용 사례**: 
+  - 반복적으로 최솟값/최댓값 꺼내기
+  - 우선순위 큐 구현
+  - 작업 스케줄링
+
+**Java에서 힙 사용하기 - PriorityQueue**
+
+```java
+// 1. 최소 힙 (기본값 - 작은 숫자가 먼저)
+PriorityQueue<Integer> minHeap = new PriorityQueue<>();
+
+// 2. 최대 힙 (큰 숫자가 먼저)
+PriorityQueue<Integer> maxHeap = new PriorityQueue<>(Collections.reverseOrder());
+
+// 3. 커스텀 정렬 (절댓값 기준)
+PriorityQueue<Integer> heap = new PriorityQueue<>((a, b) -> 
+    Math.abs(a) - Math.abs(b)
+);
+```
+
+**배열을 힙으로 변환**
+
+```java
+// int[] 배열 → PriorityQueue
+int[] scoville = {1, 2, 3, 9, 10, 12};
+
+// 방법 1: boxed() 사용
+PriorityQueue<Integer> heap = Arrays.stream(scoville)
+                                    .boxed()
+                                    .collect(Collectors.toCollection(PriorityQueue::new));
+
+// 방법 2: forEach 사용
+PriorityQueue<Integer> heap = new PriorityQueue<>();
+Arrays.stream(scoville).forEach(heap::offer);
+```
+
+**2차원 배열을 힙으로 변환**
+
+```java
+int[][] jobs = {{0, 3}, {1, 9}, {2, 6}};
+
+// 첫 번째 원소 기준 정렬
+PriorityQueue<int[]> heap = Arrays.stream(jobs)
+    .collect(Collectors.toCollection(() -> 
+        new PriorityQueue<>((a, b) -> a[0] - b[0])
+    ));
+
+// 다중 조건 정렬 (1순위: a[1], 2순위: a[0])
+PriorityQueue<int[]> heap = Arrays.stream(jobs)
+    .collect(Collectors.toCollection(() -> 
+        new PriorityQueue<>((a, b) -> {
+            if (a[1] != b[1]) return a[1] - b[1];  // 1순위
+            return a[0] - b[0];  // 2순위
+        })
+    ));
+
+// Comparator.comparing 사용 (더 명확)
+PriorityQueue<int[]> heap = new PriorityQueue<>(
+    Comparator.comparingInt((int[] a) -> a[1])  // 소요시간
+              .thenComparingInt(a -> a[0])       // 요청시각
+);
+```
+
+**더 맵게 문제**
+```java
+public int solution(int[] scoville, int K) {
+    PriorityQueue<Integer> heap = Arrays.stream(scoville)
+                                        .boxed()
+                                        .collect(Collectors.toCollection(PriorityQueue::new));
+    
+    int count = 0;
+    
+    while (heap.peek() < K) {
+        if (heap.size() < 2) {
+            return -1;
+        }
+        
+        int first = heap.poll();
+        int second = heap.poll();
+        int newScoville = first + (second * 2);
+        
+        heap.offer(newScoville);
+        count++;
+    }
+    
+    return count;
+}
+```
+
+**디스크 컨트롤러 문제 - 핵심 포인트**
+
+❌ **흔한 실수**
+```java
+// 처음부터 모든 작업을 힙에 넣으면 안 됨!
+PriorityQueue<int[]> heap = Arrays.stream(jobs)
+    .collect(Collectors.toCollection(() -> 
+        new PriorityQueue<>((a, b) -> a[1] - b[1])
+    ));
+// 문제: 아직 도착하지 않은 작업을 먼저 처리하게 됨
+```
+
+✅ **올바른 접근**
+```java
+public int solution(int[][] jobs) {
+    // 1. 요청 시각 기준으로 정렬
+    Arrays.sort(jobs, (a, b) -> a[0] - b[0]);
+    
+    // 2. 소요시간 기준 힙 (처리할 작업들)
+    PriorityQueue<int[]> heap = new PriorityQueue<>((a, b) -> a[1] - b[1]);
+    
+    int currentTime = 0;  // 현재 시간
+    int totalTime = 0;    // 총 대기+처리 시간
+    int jobIndex = 0;     // 다음에 확인할 작업 인덱스
+    int count = 0;        // 처리한 작업 수
+    
+    while (count < jobs.length) {
+        // 현재 시간까지 도착한 모든 작업을 힙에 추가
+        while (jobIndex < jobs.length && jobs[jobIndex][0] <= currentTime) {
+            heap.offer(jobs[jobIndex]);
+            jobIndex++;
+        }
+        
+        if (heap.isEmpty()) {
+            // 처리할 작업이 없으면 다음 작업의 시작 시간으로 이동
+            currentTime = jobs[jobIndex][0];
+        } else {
+            // 소요시간이 가장 짧은 작업 처리
+            int[] job = heap.poll();
+            currentTime += job[1];  // 작업 완료 시간
+            totalTime += currentTime - job[0];  // (완료 시간 - 요청 시간)
+            count++;
+        }
+    }
+    
+    return totalTime / jobs.length;
+}
+```
+
+**디스크 컨트롤러 - 핵심 차이점**
+
+| 항목 | 잘못된 방법 | 올바른 방법 |
+|------|------------|------------|
+| 작업 추가 시점 | 처음에 전부 | 현재 시간까지 도착한 것만 |
+| 초기 정렬 | 없음 | 요청 시각 순 정렬 필수 |
+| 시간 관리 | 불명확 | currentTime으로 명확히 관리 |
+| 대기시간 계산 | 복잡한 식 | `currentTime - job[0]` |
+| 공백 시간 처리 | 없음 | 다음 작업까지 시간 점프 |
+
+**PriorityQueue 주요 메서드**
+- `offer(element)` / `add(element)`: 힙에 추가
+- `poll()`: 최솟값/최댓값 꺼내기 (제거)
+- `peek()`: 최솟값/최댓값 확인만 (제거 X)
+- `size()`: 힙의 크기
+- `isEmpty()`: 비어있는지 확인
+
+**학습 포인트**
+- 힙은 **반복적인 최솟값/최댓값 처리**에 최적화
+- 작업 스케줄링 문제는 **도착 시간 고려**가 핵심
+- 도착하지 않은 작업을 미리 처리하면 안 됨
+- 변수 이름을 명확히 (`currentTime`, `totalTime`)
+- 공백 시간(처리할 작업 없음) 처리 필수
+
+---
+
 ## 학습 도구
 - Claude CLI 설치 완료 (`claude --version`: 2.0.22)
 - IntelliJ IDEA 연동
@@ -232,4 +409,5 @@ while (!stack.isEmpty()) {
 ## 통계
 - 해시: 5문제 완료
 - 스택/큐: 6문제 완료
+- 힙: 2문제 완료
 ---
